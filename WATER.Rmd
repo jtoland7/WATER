@@ -1,0 +1,59 @@
+---
+title: "WATER"
+output:
+  html_document:
+    editor_options: null
+    smart: no
+  pdf_document: default
+  chunk_output_type: inline
+  
+  # (c) Joseph Toland
+---
+Load Libraries:
+```{r message=F, warning=F}
+library(dplyr)
+library(ggplot2)
+library(maps)
+library(mapdata)
+library("maptools")
+library("raster")
+library("DescTools")
+library(gridExtra)
+library(GISTools)
+library(rgdal)
+memory.limit(size=50000)
+```
+1. Initialize the shpfile for the tests and calculate fields: 
+```{r}
+calc90 <- readOGR(dsn="C:/Water", layer="HAWWIRED_CALC_SIMPLIFIED_90_CELLIJ") #add shpfiles
+calc250 <- readOGR(dsn="C:/Water", layer="HAWWIRED_SERV_SIMPLIFIED_250_CELLIJ")
+```
+2. Calculate Test and ~90-m Service Outage
+
+```{r}
+calc90 <- as.data.frame(calc90) #to frame the data for calculations
+
+calc <- ((1- calc90$GROUND_F ) * 0.693919341 * 0.003623 * calc90$PGV * 0.39370079 * 0.15 + 2.46 * 0.711281381 * calc90$GROUND_F * 0.5 ) * 3.2808 # Equation 4
+
+calc90 <- calc90 %>% mutate(BREAK_R_NE_TEST = calc)
+calc90 <- calc90 %>% mutate(SERV_90_TEST = pnorm(log(calc90$BREAK_R_NE), mean = log(.1), sd = .85)) #Equation 1
+names(calc90)
+head(calc90)
+```
+3. Calculate Test and ~250-m Service Outage
+```{r}
+calc250 <- as.data.frame(calc250) #to frame the data for calculations
+
+calc250 <- calc250 %>% mutate(SERV_250_TEST = pnorm(log(calc250$BREAK_R_NE), mean = log(.1), sd = .85)) #Equation 1
+calc250 <- calc250 %>% mutate(POP_OUTAGE_TEST = round(SERV_250_TEST*POP))
+#Equatio 5
+names(calc250)
+head(calc250)
+```
+3. Export
+```{r}
+export(calc250[,c("coords.x1","coords.x2","POP","BREAK_R_NE","SERV_250","SERV_250_TEST","POP_OUTAGE", "POP_OUTAGE_TEST")], "TEST_250.dbf", format = "dbf")
+
+export(calc90[,c("coords.x1","coords.x2","POP","PGV","GROUND_F","BREAK_R_NE","BREAK_R_NE_TEST","SERV_90_TEST")], "TEST_90.dbf", format = "dbf")
+```
+
